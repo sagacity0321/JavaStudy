@@ -2,6 +2,9 @@ package FTP;
 
 import java.io.*;
 import java.net.*;
+import java.util.Scanner;
+
+import static FTP.FTP_Client.socket;
 
 public class FTP_Server {
     public static OutputStream _OutputStream;
@@ -46,7 +49,7 @@ public class FTP_Server {
 
         // String형 데이터를 전송받아 filename(파일의 이름으로 쓰일)에 저장
         String filename = din.readUTF();
-        String strFtpFileName = strFtpServerFolderName + "\\" + filename;
+        String strFtpFileName = strFtpServerFolderName + "/" + filename;
         File fFtpFile = new File(strFtpFileName);
 
         System.out.println("[server]: 크기 받기 성공, 파일 크기: " + data);
@@ -61,28 +64,35 @@ public class FTP_Server {
         byte[] buffer = new byte[1024];
 
         // 전송받은 data의 횟수만큼 전송받아 FileOutputStream을 이용하여 File 완성
-        for(int len; data>0; data--){
+//        for(int len = 0; data>0; data--){
+//            len = _InputStream.read(buffer);
+//            _FileOutputStream.write(buffer, 0, len);
+//        }
+        int len = 0;
+        while(true){
+            if(data == 0)
+                break;
             len = _InputStream.read(buffer);
             _FileOutputStream.write(buffer, 0, len);
+            data--;
         }
-        _FileOutputStream.close();
+
         _FileOutputStream.flush();
+        _FileOutputStream.close();
         System.out.println("[server]: \"" + filename + "\" 파일 전송 완료!!");
     }
 
-    public static void IsSendFile(String message, OutputStream _OutputStream) throws IOException{
-        DataOutputStream don = new DataOutputStream(_OutputStream);
+    public static void IsSendFile(String filename, OutputStream _OutputStream) throws IOException{
 
-        if(IsSendMessage(message, _OutputStream))
-            System.out.println("");
-
-        String strFtpFileName = strFtpServerFolderName + "\\" + message;
+        String strFtpFileName = strFtpServerFolderName + "/" + filename;
         File fFtpFile = new File(strFtpFileName);
+
         if(!fFtpFile.exists()){
             System.out.println("[server]: " + fFtpFile.toString() + " 파일이 존재하지 않습니다.");
             return;
         }
 
+        DataOutputStream dout = new DataOutputStream(_OutputStream);
         byte[] buffer = new byte[1024];
         int len;
         int data = 0;
@@ -93,14 +103,17 @@ public class FTP_Server {
         _FileInputStream.close();
 
         _FileInputStream = new FileInputStream(fFtpFile);
-        don.writeInt(data);
-        don.writeUTF(fFtpFile.getName());
+        dout.writeInt(data);
+        dout.writeUTF(fFtpFile.getName());
+        dout.flush();
 
         for(len = 0; data > 0; data--){
             len = _FileInputStream.read(buffer);
             _OutputStream.write(buffer, 0, len);
         }
+        _FileInputStream.close();
         _OutputStream.flush();
+
         System.out.println("[server]: \"" + fFtpFile.getName() + "\" File Send Success !!");
 
     }
@@ -115,7 +128,7 @@ public class FTP_Server {
         }
         try {
             serverSocket = new ServerSocket();
-            serverSocket.bind(new InetSocketAddress("localhost", 5001));
+            serverSocket.bind(new InetSocketAddress("localhost", 5002));
 
             while (true){
                 System.out.println("[server]: Waiting Connection");
@@ -132,7 +145,7 @@ public class FTP_Server {
                     _OutputStream = socket.getOutputStream();
                     _InputStream = socket.getInputStream();
 
-                    message = "\nHello" + isa.getHostName() + "... input the command ... \n";
+                    message = "\nHello " + isa.getHostName() + "... input the command ... \n";
                     message += "====== < MENU > =====\n";
                     message += " 1. dir (File List)\n";
                     message += " 2. mkdir(Folder Create)\n";
@@ -172,7 +185,7 @@ public class FTP_Server {
                         message = IsReceiveMessage(_InputStream);
 
                         System.out.println("[server]: 생성할 폴더명 받기 성공, 폴더명: " + message);
-                        String strFtpFileName = strFtpServerFolderName + "\\" + message;
+                        String strFtpFileName = strFtpServerFolderName + "/" + message;
                         File fFtpFolder = new File(strFtpFileName);
                         if(!fFtpFolder.exists()){
                             fFtpFolder.mkdir();
@@ -185,11 +198,16 @@ public class FTP_Server {
                         if(IsSendMessage(message, _OutputStream))
                             System.out.println("");
 
-                        _InputStream = socket.getInputStream();
                         message = IsReceiveMessage(_InputStream);
-                        System.out.println("[server]: 업로드할 파일명 받기 성공, 파송명: " + message);
+                        int fileCount = Integer.parseInt(message);
+                        System.out.println(fileCount);
 
-                        IsReceiveFile(_InputStream);
+                        for (int i = 0; i < fileCount; i++) {
+                            message = IsReceiveMessage(_InputStream);
+                            System.out.println("[server]: 업로드할 파일명 받기 성공, 파일명: " + message);
+
+                            IsReceiveFile(_InputStream);
+                        }
 
                     }else if(message.equals("4")){
 //                      // 업로드 부분을 참조하여 작성
@@ -198,12 +216,16 @@ public class FTP_Server {
                         if(IsSendMessage(message, _OutputStream))
                             System.out.println("");
 
-                        // 다운로드 해줄 파일명 받기
-                        _InputStream = socket.getInputStream();
                         message = IsReceiveMessage(_InputStream);
-                        System.out.println("[server]: 다운로드할 파일명 받기 성공, 파일명: " + message);
+                        int fileCount = Integer.parseInt(message);
+                        System.out.println(fileCount);
 
-                        IsSendFile(message, _OutputStream);
+                        for (int i = 0; i < fileCount; i++) {
+                            message = IsReceiveMessage(_InputStream);
+                            System.out.println("[server]: 다운로드할 파일명 받기 성공, 파일명: " + message);
+
+                            IsSendFile(message, _OutputStream);
+                        }
 
                     }else if(message.equals("5")){
                         if(IsSendMessage(message, _OutputStream))
@@ -211,7 +233,7 @@ public class FTP_Server {
                         _InputStream = socket.getInputStream();
                         message = IsReceiveMessage(_InputStream);
 
-                        String strFtpFileName = strFtpServerFolderName + "\\" + message;
+                        String strFtpFileName = strFtpServerFolderName + "/" + message;
                         File fFtpFile = new File(strFtpFileName);
                         if(fFtpFile.exists()){
                             fFtpFile.delete();

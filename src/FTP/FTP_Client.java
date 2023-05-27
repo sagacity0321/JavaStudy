@@ -33,29 +33,27 @@ public class FTP_Client {
                 return (new String(bytes, 0, readByteConunt, "UTF-8"));
             }
         }catch (IOException e){
-            return "[Error: Receive 001";
+            return "[Error: Receive 001]";
         }
     }
 
-    public static void IsReceiveFile(InputStream _InputStream) throws IOException {
-        // InputStream으로 데이터 단위로 입력을 받는 DataInputStream을 개통
+    public static void IsReceiveFile(String filename) throws IOException {
         DataInputStream din = new DataInputStream(_InputStream);
         FileOutputStream _FileOutputStream = null;
 
-        // Int형 데이터 전송 받음
-        int data = din.readInt();
 
-        // String형 데이터를 전송받아 filename(파일의 이름으로 쓰일)에 저장
-        String filename = din.readUTF();
-        String strFtpFileName = strFtpClientFolderName + "\\" + filename;
+        String strFtpFileName = strFtpClientFolderName + "/" + filename;
         File fFtpFile = new File(strFtpFileName);
 
-        System.out.println("[Client]: 크기 받기 성공, 파일 크기: " + data);
+        int data = din.readInt();
 
+        System.out.println("[Client]: 크기 받기 성공, 파일 크기: " + data);
         if(fFtpFile.exists()){
             System.out.println("[Client]: 이미 \"" + fFtpFile.toString() + "\" 파일이 존재합니다.");
             return;
         }
+
+        _InputStream = socket.getInputStream();
 
         // 생성한 파일을 클라이언트로부터 전송받아 완성시키는 FileOutputStream 개통
         _FileOutputStream = new FileOutputStream(fFtpFile);
@@ -66,8 +64,10 @@ public class FTP_Client {
             len = _InputStream.read(buffer);
             _FileOutputStream.write(buffer, 0, len);
         }
+        _OutputStream.flush();
         _FileOutputStream.close();
         _FileOutputStream.flush();
+
         System.out.println("[Client]: \"" + filename + "\" 파일 전송 완료!!");
     }
 
@@ -78,7 +78,7 @@ public class FTP_Client {
         if(IsSendMessage(message, _OutputStream))
             System.out.println("");
 
-        String strFtpFileName = strFtpClientFolderName + "\\" + message;
+        String strFtpFileName = strFtpClientFolderName + "/" + message;
         File fFtpFile = new File(strFtpFileName);
         if(!fFtpFile.exists()){
             System.out.println("[Client]: " + fFtpFile.toString() + " 파일이 존재하지 않습니다.");
@@ -104,7 +104,9 @@ public class FTP_Client {
             len = _FileInputStream.read(buffer);
             _OutputStream.write(buffer, 0, len);
         }
+
         _OutputStream.flush();
+        _FileInputStream.close();
         System.out.println("[Client]: \"" + fFtpFile.getName() + "\" File Send Success !!");
 
     }
@@ -117,7 +119,7 @@ public class FTP_Client {
         try{
             socket = new Socket();
             System.out.println("[Client: Server에 연결 요청]");
-            socket.connect(new InetSocketAddress("localhost", 5001));
+            socket.connect(new InetSocketAddress("localhost", 5002));
             System.out.println("[Client: Server에 연결 성공]");
 
             boolean isExit = false;
@@ -166,33 +168,43 @@ public class FTP_Client {
                     // 서버에 업로드할 파일들을 공백 기준으로 잘라서 스트링 배열에 넣기
                     String[] strSendFileList = strSendFiles.split(" ");
                     // 업로드할 파일의 개수가 1개 이하 -> 단일 처리
-                    if(strSendFileList.length == 1)
-                        IsSendFile(new File(strSendFiles));
-                    else {
-                        // report
-                        // Thread 없이 순서대로
-                        for (int i = 0; i < strSendFileList.length; i++) {
-                            IsSendFile(new File(strSendFileList[i]));
-                        }
+
+                    // report
+                    // Thread 없이 순서대로
+                    int fileCount = strSendFileList.length;
+                    message = Integer.toString(fileCount);
+                    if(!IsSendMessage(message, _OutputStream))
+                        System.out.println("There is " + fileCount + " files.");
+
+                    for (int i = 0; i < strSendFileList.length; i++) {
+                        String fileName = strSendFileList[i];
+                        IsSendFile(new File(fileName));
+                        Thread.sleep(500);
                     }
+
                     Thread.sleep(500);
 
                 }else if(message.equals("4")){
                     // report
+
                     IsRecevieMessage(_InputStream);
                     System.out.print("[Client]: 다운로드할 파일명을 입력해 주세요: ");
                     _Scanner = new Scanner(System.in);
 
-                    String strRecieveFiles = _Scanner.nextLine();
-                    String[] strRecieveFileList = strRecieveFiles.split(" ");
+                    String strReceiveFiles = _Scanner.nextLine();
+                    String[] strReceiveFileList = strReceiveFiles.split(" ");
 
-                    if(strRecieveFileList.length == 1)
-                        IsReceiveFile(_InputStream);
-                    else {
-                        for (int i = 0; i < strRecieveFileList.length; i++) {
-                            IsReceiveFile(_InputStream);
-                        }
+                    int fileCount = strReceiveFileList.length;
+                    message = Integer.toString(fileCount);
+                    if(!IsSendMessage(message, _OutputStream))
+                        System.out.println("There is " + fileCount + " files.");
+
+                    for (int i = 0; i < strReceiveFileList.length; i++) {
+                        String fileName = strReceiveFileList[i];
+                        IsReceiveFile(fileName);
+                        Thread.sleep(500);
                     }
+
                     Thread.sleep(500);
 
 
